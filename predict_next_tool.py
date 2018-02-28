@@ -16,6 +16,8 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Activation
 from keras.layers.embeddings import Embedding
+from keras.wrappers.scikit_learn import KerasClassifier
+
 
 import prepare_data
 
@@ -24,7 +26,7 @@ class PredictNextTool:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.test_data_share = 0.25
+        self.test_data_share = 0.2
 
     @classmethod
     def divide_train_test_data( self ):
@@ -58,35 +60,29 @@ class PredictNextTool:
             test_data[ i ] = complete_data[ item ]
             test_labels[ i ] = labels[ item ]
         return train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary
-
+        
     @classmethod
-    def evaluate_LSTM_network( self ):
+    def evaluate_keras_classifier( self ):
         """
-        Create LSTM network and evaluate performance
+        Create neural network classifier
         """
         print "Dividing data..."
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
-        # reshape train and test data
         train_data = np.reshape(train_data, (train_data.shape[0], 1, train_data.shape[1]))
         train_labels = np.reshape(train_labels, (train_labels.shape[0], 1, train_labels.shape[1]))
         test_data = np.reshape(test_data, (test_data.shape[0], 1, test_data.shape[1]))
         test_labels = np.reshape(test_labels, (test_labels.shape[0], 1, test_labels.shape[1]))
         train_data_shape = train_data.shape
 
-        # define recurrent network
         model = Sequential()
-        model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True ) )
+        model.add( Dense( 500, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), activation='relu' ) )
         model.add( Dropout( 0.3 ) )
         model.add( Dense( dimensions ) )
-        model.add( Activation( 'softmax' ) )
+	model.add( Activation( 'softmax' ) )
         model.compile( loss='categorical_crossentropy', optimizer='rmsprop' )
-        
         print "Start training..."
-        model.fit( train_data, train_labels, epochs=150, batch_size=100 )
+        model.fit( train_data, train_labels, epochs=50, batch_size=10 )
         print "Start predicting..."
-        #accuracy = model.evaluate( test_data, test_labels, verbose=0 )
-        #print accuracy
-        # rather than overall accuracy, see if top 5 predicted tools contain that label
         self.see_predicted_tools( model, dictionary, reverse_dictionary, test_data, test_labels, dimensions )
 
     @classmethod
@@ -95,43 +91,36 @@ class PredictNextTool:
         Use trained model to predict next tool
         """
         # predict random input sequences
-        num_predict = 2 #len( test_data )
+        num_predict = 50 #len( test_data )
         num_predictions = 5
         prediction_accuracy = 0
         print "Get top 5 predictions for each test input..."
         for i in range( num_predict ):
-            input_tools = []
             input_seq = test_data[ i ][ 0 ]
-            tool_pos = np.where( input_seq == 1.0 )[ 0 ]
-            for item in tool_pos:
-                input_tools.append( reverse_dictionary[ item ] )
-            input_tools_text = " ".join( input_tools )
-            print "Input sequence: %s " % input_tools_text
             label = test_labels[ i ][ 0 ]
-            label_pos = np.where( label == 1.0 )[ 0 ]
+            tool_pos = np.where( input_seq > 0.0 )[ 0 ]
+            input_tool_text = reverse_dictionary[ tool_pos[ 0 ] ]
+            label_pos = np.where( label > 0.0 )[ 0 ]
             label_text = reverse_dictionary[ label_pos[ 0 ] ]
+            print "Input sequence: %s " % input_tool_text
             print "Actual next tool: %s" % label_text
-            input_seq_reshaped = np.reshape( test_data[ i ], ( 1, 1, dimensions ) )
+            input_seq_reshaped = np.reshape( input_seq, ( 1, 1, dimensions ) )
             # predict the next tool using the trained model
             prediction = trained_model.predict( input_seq_reshaped, verbose=0 )
             prediction = np.reshape( prediction, ( dimensions ) )
             # take prediction in reverse order, best ones first
-            #prediction_pos = np.argsort( prediction, axis=2 )[ :, :, -num_predictions: ]
-            #print prediction
             prediction_pos = np.argsort( prediction, axis=0 )
-            #print prediction_pos
-            top_pred_pos = prediction_pos[ -num_predictions: ]
-            top_predictions = list()
-            # get the corresponding predicted tool names
-            for pred_pos in top_pred_pos:
-                tool_text = reverse_dictionary[ pred_pos ]
-                top_predictions.append( tool_text )
+            # get top n predictions
+            top_prediction_pos = prediction_pos[ -num_predictions: ]
+            # get tool names for the predicted positions
+            top_predictions = [ reverse_dictionary[ pred_pos ] for pred_pos in top_prediction_pos ]
             top_predicted_tools_text = " ".join( top_predictions )
             if label_text in top_predictions:
                 prediction_accuracy += 1
-            print "%d - Predicted next tools: %s" % ( i, top_predicted_tools_text )
+            print "Predicted next tools: %s" % top_predicted_tools_text
             print "=========================================="
         print "Prediction accuracy: %s" % str( float( prediction_accuracy ) / num_predict )
+
 
 if __name__ == "__main__":
 
@@ -140,6 +129,6 @@ if __name__ == "__main__":
         exit( 1 )
     start_time = time.time()
     predict_tool = PredictNextTool()
-    predict_tool.evaluate_LSTM_network()
+    predict_tool.evaluate_keras_classifier()
     end_time = time.time()
     print "Program finished in %s seconds" % str( end_time - start_time  )
