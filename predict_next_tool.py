@@ -16,7 +16,6 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Activation
 from keras.layers.embeddings import Embedding
-from keras.preprocessing import sequence
 
 import prepare_data
 
@@ -25,7 +24,7 @@ class PredictNextTool:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.test_data_share = 0.3
+        self.test_data_share = 0.25
 
     @classmethod
     def divide_train_test_data( self ):
@@ -40,19 +39,24 @@ class PredictNextTool:
         len_test_data = int( self.test_data_share * len_data )
         dimensions = len( complete_data[ 0 ] )
         # take random positions from the complete data to create test data
-        data_indices = range( len_data - 1 )
+        data_indices = range( len_data )
         shuffle( data_indices )
         test_positions = data_indices[ :len_test_data ]
         train_positions = data_indices[ len_test_data: ]
+
         # create test and train data and labels
-        train_data = train_labels = np.zeros([ len_data - len_test_data, dimensions ])
-        test_data = test_labels = np.zeros([ len_test_data, dimensions ])
-        for train_pos in range( len( train_positions ) ):
-            train_data[ train_pos ] = complete_data[ train_positions[ train_pos ] ]
-            train_labels[ train_pos ] = labels[ train_positions[ train_pos ] ]
-        for test_pos in range( len( test_positions ) ):
-            test_data[ test_pos ] = complete_data[ test_positions[ test_pos ] ]
-            test_labels[ test_pos ] = labels[ test_positions[ test_pos ] ]
+        train_data = np.zeros( [ len_data - len_test_data, dimensions ] ) 
+        train_labels = np.zeros( [ len_data - len_test_data, dimensions ] )
+        test_data = np.zeros( [ len_test_data, dimensions ] )
+        test_labels = np.zeros( [ len_test_data, dimensions ] )
+
+        for i, item in enumerate( train_positions ):
+            train_data[ i ] = complete_data[ item ]
+            train_labels[ i ] = labels[ item ]
+
+        for i, item in enumerate( test_positions ):
+            test_data[ i ] = complete_data[ item ]
+            test_labels[ i ] = labels[ item ]
         return train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary
 
     @classmethod
@@ -78,10 +82,11 @@ class PredictNextTool:
         model.compile( loss='categorical_crossentropy', optimizer='rmsprop' )
         
         print "Start training..."
-        model.fit( train_data, train_labels, epochs=10, batch_size=50 )
+        model.fit( train_data, train_labels, epochs=100, batch_size=100 )
         print "Start predicting..."
-        accuracy = model.evaluate( test_data, test_labels, verbose=0 )
-        print accuracy
+        #accuracy = model.evaluate( test_data, test_labels, verbose=0 )
+        #print accuracy
+        # rather than overall accuracy, see if top 5 predicted tools contain that label
         self.see_predicted_tools( model, dictionary, reverse_dictionary, test_data, test_labels )
 
     @classmethod
@@ -90,20 +95,20 @@ class PredictNextTool:
         Use trained model to predict next tool
         """
         # predict random input sequences
-        num_predict = 100
+        num_predict = len( test_data )
         num_predictions = 5
         prediction_accuracy = 0
         print "Get top 5 predictions for each test input..."
         for i in range( num_predict ):
             input_tools = []
             input_seq = test_data[ i ][ 0 ]
-            tool_pos = np.where( input_seq > 0.0 )[ 0 ]
+            tool_pos = np.where( input_seq == 1.0 )[ 0 ]
             for item in tool_pos:
                 input_tools.append( reverse_dictionary[ item ] )
             input_tools_text = " ".join( input_tools )
             print "Input sequence: %s " % input_tools_text
             label = test_labels[ i ][ 0 ]
-            label_pos = np.where( label > 0.0 )[ 0 ]
+            label_pos = np.where( label == 1.0 )[ 0 ]
             label_text = reverse_dictionary[ label_pos[ 0 ] ]
             print "Actual next tool: %s" % label_text
             input_seq_reshaped = np.reshape( test_data[ i ], ( 1, 1, test_data[ i ].shape[ 1 ] ) )
@@ -121,7 +126,7 @@ class PredictNextTool:
             top_predicted_tools_text = " ".join( top_predictions )
             if label_text in top_predictions:
                 prediction_accuracy += 1
-            print "Predicted next tools: %s" % top_predicted_tools_text
+            print "%d - Predicted next tools: %s" % ( i, top_predicted_tools_text )
             print "=========================================="
         print "Prediction accuracy: %s" % str( float( prediction_accuracy ) / num_predict )
 
