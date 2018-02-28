@@ -82,20 +82,20 @@ class PredictNextTool:
         model.compile( loss='categorical_crossentropy', optimizer='rmsprop' )
         
         print "Start training..."
-        model.fit( train_data, train_labels, epochs=100, batch_size=100 )
+        model.fit( train_data, train_labels, epochs=150, batch_size=100 )
         print "Start predicting..."
         #accuracy = model.evaluate( test_data, test_labels, verbose=0 )
         #print accuracy
         # rather than overall accuracy, see if top 5 predicted tools contain that label
-        self.see_predicted_tools( model, dictionary, reverse_dictionary, test_data, test_labels )
+        self.see_predicted_tools( model, dictionary, reverse_dictionary, test_data, test_labels, dimensions )
 
     @classmethod
-    def see_predicted_tools( self, trained_model, dictionary, reverse_dictionary, test_data, test_labels ):
+    def see_predicted_tools( self, trained_model, dictionary, reverse_dictionary, test_data, test_labels, dimensions ):
         """
         Use trained model to predict next tool
         """
         # predict random input sequences
-        num_predict = len( test_data )
+        num_predict = 2 #len( test_data )
         num_predictions = 5
         prediction_accuracy = 0
         print "Get top 5 predictions for each test input..."
@@ -111,16 +111,19 @@ class PredictNextTool:
             label_pos = np.where( label == 1.0 )[ 0 ]
             label_text = reverse_dictionary[ label_pos[ 0 ] ]
             print "Actual next tool: %s" % label_text
-            input_seq_reshaped = np.reshape( test_data[ i ], ( 1, 1, test_data[ i ].shape[ 1 ] ) )
+            input_seq_reshaped = np.reshape( test_data[ i ], ( 1, 1, dimensions ) )
             # predict the next tool using the trained model
             prediction = trained_model.predict( input_seq_reshaped, verbose=0 )
+            prediction = np.reshape( prediction, ( dimensions ) )
             # take prediction in reverse order, best ones first
-            prediction_pos = np.argsort( prediction, axis=2 )[ :, :, -num_predictions: ]
-            # reshape to 1d array from 3d array
-            prediction_pos = np.reshape( prediction_pos, ( num_predictions ) )
+            #prediction_pos = np.argsort( prediction, axis=2 )[ :, :, -num_predictions: ]
+            #print prediction
+            prediction_pos = np.argsort( prediction, axis=0 )
+            #print prediction_pos
+            top_pred_pos = prediction_pos[ -num_predictions: ]
             top_predictions = list()
             # get the corresponding predicted tool names
-            for pred_pos in prediction_pos:
+            for pred_pos in top_pred_pos:
                 tool_text = reverse_dictionary[ pred_pos ]
                 top_predictions.append( tool_text )
             top_predicted_tools_text = " ".join( top_predictions )
