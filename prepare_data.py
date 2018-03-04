@@ -6,6 +6,7 @@ import random
 import collections
 import time
 import numpy as np
+import os
 
 
 class PrepareData:
@@ -13,9 +14,10 @@ class PrepareData:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.raw_file = "data/workflow_steps.txt"
-        self.train_file = "data/train_data.txt"
-        self.sequence_file = "data/train_data_sequence.txt"
+        self.base_path = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/cluster_tool_sequences/similar_galaxy_workflow'
+        self.raw_file = self.base_path + "/data/workflow_steps.txt"
+        self.train_file = self.base_path + "/data/train_data.txt"
+        self.sequence_file = self.base_path + "/data/train_data_sequence.txt"
 
     @classmethod
     def process_processed_data( self, fname ):
@@ -117,7 +119,7 @@ class PrepareData:
         """
         processed_data, raw_paths = self.process_processed_data( self.raw_file )
         dictionary, reverse_dictionary = self.create_data_dictionary( processed_data )
-        #self.create_train_labels_file( dictionary, raw_paths )
+        self.create_train_labels_file( dictionary, raw_paths )
         # all the nodes/tools are classes as well
         num_classes = len( dictionary )
         train_data_array = np.zeros([num_classes])

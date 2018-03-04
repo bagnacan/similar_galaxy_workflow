@@ -31,7 +31,7 @@ class PredictNextTool:
         """ Init method. """
         self.test_data_share = 0.3
         self.test_positions = list()
-        self.current_working_dir = os.getcwd()
+        self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/cluster_tool_sequences/similar_galaxy_workflow'
         self.sequence_file = self.current_working_dir + "/data/train_data_sequence.txt"
         self.network_config_json_path = self.current_working_dir + "/data/model.json"
         self.weights_path = self.current_working_dir + "/data/weights/trained_model.h5"
@@ -78,7 +78,7 @@ class PredictNextTool:
         Create LSTM network and evaluate performance
         """
         print "Dividing data..."
-        n_epochs = 5
+        n_epochs = 20
         num_predictions = 5
         batch_size = 500
         dropout = 0.3
@@ -108,7 +108,7 @@ class PredictNextTool:
         callbacks_list = [ checkpoint ]
 
         print "Start training..."
-        model_fit_callbacks = model.fit( train_data, train_labels, epochs=n_epochs, batch_size=batch_size, callbacks=callbacks_list )
+        model_fit_callbacks = model.fit( train_data, train_labels, nb_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list )
         loss_values = model_fit_callbacks.history[ "loss" ]
         accuracy_values = model_fit_callbacks.history[ "acc" ]
         np_loss_values = np.array( loss_values )
