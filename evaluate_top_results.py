@@ -17,9 +17,9 @@ class EvaluateTopResults:
     def __init__( self ):
         """ Init method. """
         self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/cluster_tool_sequences/similar_galaxy_workflow'
-        self.network_config_json_path = self.current_working_dir + "/data/model.json"
-        self.weights_path = self.current_working_dir + "/data/weights/trained_model.h5"
-        self.base_epochs_weights_path = self.current_working_dir + "/data/weights/weights-epoch-"
+        self.network_config_json_path = self.current_working_dir + "/data/model1.json"
+        self.weights_path = self.current_working_dir + "/data/weights/trained_model1.h5"
+        self.base_epochs_weights_path = self.current_working_dir + "/data/weights/weights1-epoch-"
 
     @classmethod
     def load_saved_model( self, network_config_path, weights_path ):

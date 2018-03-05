@@ -33,11 +33,11 @@ class PredictNextTool:
         self.test_positions = list()
         self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/cluster_tool_sequences/similar_galaxy_workflow'
         self.sequence_file = self.current_working_dir + "/data/train_data_sequence.txt"
-        self.network_config_json_path = self.current_working_dir + "/data/model.json"
-        self.weights_path = self.current_working_dir + "/data/weights/trained_model.h5"
-        self.loss_path = self.current_working_dir + "/data/loss_history.txt"
-        self.accuracy_path = self.current_working_dir + "/data/accuracy_history.txt"
-        self.epoch_weights_path = self.current_working_dir + "/data/weights/weights-epoch-{epoch:02d}.hdf5"
+        self.network_config_json_path = self.current_working_dir + "/data/model1.json"
+        self.weights_path = self.current_working_dir + "/data/weights/trained_model1.h5"
+        self.loss_path = self.current_working_dir + "/data/loss_history1.txt"
+        self.accuracy_path = self.current_working_dir + "/data/accuracy_history1.txt"
+        self.epoch_weights_path = self.current_working_dir + "/data/weights/weights1-epoch-{epoch:02d}.hdf5"
 
     @classmethod
     def divide_train_test_data( self ):
@@ -78,10 +78,10 @@ class PredictNextTool:
         Create LSTM network and evaluate performance
         """
         print "Dividing data..."
-        n_epochs = 20
+        n_epochs = 200
         num_predictions = 5
-        batch_size = 500
-        dropout = 0.3
+        batch_size = 10
+        dropout = 0.2
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
         # reshape train and test data
         train_data = np.reshape(train_data, (train_data.shape[0], 1, train_data.shape[1]))
@@ -94,14 +94,14 @@ class PredictNextTool:
         model = Sequential()
         model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True ) )
         model.add( Dropout( dropout ) )
-        model.add( LSTM( 512, return_sequences=True ) )
-        model.add( Dropout( dropout ) )
-        model.add( LSTM( 256, return_sequences=True) )
-        model.add( Dense( 256 ) )
-        model.add( Dropout( dropout ) )
+        #model.add( LSTM( 512, return_sequences=True ) )
+        #model.add( Dropout( dropout ) )
+        #model.add( LSTM( 256, return_sequences=True) )
+        #model.add( Dense( 256 ) )
+        #model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
         model.add( Activation( 'softmax' ) )
-        model.compile( loss='categorical_crossentropy', optimizer='rmsprop', metrics=[ 'accuracy' ] )
+        model.compile( loss='categorical_crossentropy', optimizer='adam', metrics=[ 'accuracy' ] )
 
         # create checkpoint after each epoch - save the weights to h5 file
         checkpoint = ModelCheckpoint( self.epoch_weights_path, verbose=1, mode='max' )
