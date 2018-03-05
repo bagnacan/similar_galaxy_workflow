@@ -20,6 +20,8 @@ from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.callbacks import ModelCheckpoint
 from keras.models import model_from_json
+from keras.optimizers import RMSprop, Adam
+from keras.callbacks import LambdaCallback
 
 import prepare_data
 import evaluate_top_results
@@ -80,7 +82,7 @@ class PredictNextTool:
         print "Dividing data..."
         n_epochs = 200
         num_predictions = 5
-        batch_size = 10
+        batch_size = 40
         dropout = 0.2
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
         # reshape train and test data
@@ -89,26 +91,26 @@ class PredictNextTool:
         test_data = np.reshape(test_data, (test_data.shape[0], 1, test_data.shape[1]))
         test_labels = np.reshape(test_labels, (test_labels.shape[0], 1, test_labels.shape[1]))
         train_data_shape = train_data.shape
-
+        optimizer = Adam( lr=0.0001 )
         # define recurrent network
         model = Sequential()
         model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True ) )
         model.add( Dropout( dropout ) )
         #model.add( LSTM( 512, return_sequences=True ) )
         #model.add( Dropout( dropout ) )
-        #model.add( LSTM( 256, return_sequences=True) )
-        #model.add( Dense( 256 ) )
-        #model.add( Dropout( dropout ) )
+        model.add( LSTM( 256, return_sequences=True) )
+        model.add( Dense( 256 ) )
+        model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
         model.add( Activation( 'softmax' ) )
-        model.compile( loss='categorical_crossentropy', optimizer='adam', metrics=[ 'accuracy' ] )
+        model.compile( loss='categorical_crossentropy', optimizer=optimizer, metrics=[ 'accuracy' ] )
 
         # create checkpoint after each epoch - save the weights to h5 file
         checkpoint = ModelCheckpoint( self.epoch_weights_path, verbose=1, mode='max' )
         callbacks_list = [ checkpoint ]
 
         print "Start training..."
-        model_fit_callbacks = model.fit( train_data, train_labels, nb_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list )
+        model_fit_callbacks = model.fit( train_data, train_labels, nb_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
         loss_values = model_fit_callbacks.history[ "loss" ]
         accuracy_values = model_fit_callbacks.history[ "acc" ]
         np_loss_values = np.array( loss_values )
