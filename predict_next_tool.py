@@ -71,7 +71,7 @@ class PredictNextTool:
         Create LSTM network and evaluate performance
         """
         print "Dividing data..."
-        n_epochs = 50
+        n_epochs = 10
         num_predictions = 5
         batch_size = 40
         dropout = 0.2
@@ -85,13 +85,13 @@ class PredictNextTool:
         optimizer = Adam( lr=0.0001 )
         # define recurrent network
         model = Sequential()
-        model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True, recurrent_dropout=dropout ) )
+        model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True, dropout_U=dropout ) )
         model.add( Dropout( dropout ) )
         #model.add( LSTM( 512, return_sequences=True ) )
         #model.add( Dropout( dropout ) )
         #model.add( LSTM( 256, return_sequences=True ) )
         #model.add( Dropout( dropout ) )
-        model.add( LSTM( 256, return_sequences=True, recurrent_dropout=dropout ) )
+        model.add( LSTM( 256, return_sequences=True, dropout_U=dropout ) )
         model.add( Dense( 256 ) )
         model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
@@ -103,7 +103,7 @@ class PredictNextTool:
         callbacks_list = [ checkpoint ]
 
         print "Start training..."
-        model_fit_callbacks = model.fit( train_data, train_labels, validation_data=( test_data, test_labels ), np_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
+        model_fit_callbacks = model.fit( train_data, train_labels, validation_data=( test_data, test_labels ), nb_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
         loss_values = model_fit_callbacks.history[ "loss" ]
         accuracy_values = model_fit_callbacks.history[ "acc" ]
         validation_loss = model_fit_callbacks.history[ "val_loss" ]

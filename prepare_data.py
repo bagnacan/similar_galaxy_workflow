@@ -19,7 +19,7 @@ class PrepareData:
         self.raw_file = self.base_path + "/data/workflow_steps.txt"
         self.train_file = self.base_path + "/data/train_data.txt"
         self.sequence_file = self.base_path + "/data/train_data_sequence.txt"
-        self.distribution_file = self.base_path + "data/data_distribution.txt"
+        self.distribution_file = self.base_path + "/data/data_distribution.txt"
 
     @classmethod
     def process_processed_data( self, fname ):
