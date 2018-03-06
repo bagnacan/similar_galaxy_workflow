@@ -8,6 +8,7 @@ import collections
 import time
 import math
 import os
+import h5py as h5
 from random import shuffle
 
 # machine learning library
@@ -21,7 +22,7 @@ from keras.preprocessing import sequence
 from keras.callbacks import ModelCheckpoint
 from keras.models import model_from_json
 from keras.optimizers import RMSprop, Adam
-from keras.callbacks import LambdaCallback
+from sklearn.model_selection import train_test_split
 
 import prepare_data
 import evaluate_top_results
@@ -31,47 +32,37 @@ class PredictNextTool:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.test_data_share = 0.3
-        self.test_positions = list()
         self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/cluster_tool_sequences/similar_galaxy_workflow'
         self.sequence_file = self.current_working_dir + "/data/train_data_sequence.txt"
-        self.network_config_json_path = self.current_working_dir + "/data/model1.json"
-        self.weights_path = self.current_working_dir + "/data/weights/trained_model1.h5"
-        self.loss_path = self.current_working_dir + "/data/loss_history1.txt"
-        self.accuracy_path = self.current_working_dir + "/data/accuracy_history1.txt"
-        self.epoch_weights_path = self.current_working_dir + "/data/weights/weights1-epoch-{epoch:02d}.hdf5"
+        self.network_config_json_path = self.current_working_dir + "/data/model.json"
+        self.weights_path = self.current_working_dir + "/data/weights/trained_model.h5"
+        self.loss_path = self.current_working_dir + "/data/loss_history.txt"
+        self.accuracy_path = self.current_working_dir + "/data/accuracy_history.txt"
+        self.val_loss_path = self.current_working_dir + "/data/val_loss_history.txt"
+        self.val_accuracy_path = self.current_working_dir + "/data/val_accuracy_history.txt"
+        self.epoch_weights_path = self.current_working_dir + "/data/weights/weights-epoch-{epoch:02d}.hdf5"
+        self.test_data_path = self.current_working_dir + "/data/test_data.hdf5"
+        self.test_labels_path = self.current_working_dir + "/data/test_labels.hdf5"
 
     @classmethod
     def divide_train_test_data( self ):
         """
         Divide data into train and test sets in a random way
         """
+        test_data_share = 0.33
+        seed = 0
         data = prepare_data.PrepareData()
-        complete_data, labels, dictionary, reverse_dictionary = data.read_data()
-        complete_data = complete_data[ :len( complete_data ) - 1 ]
-        labels = labels[ :len( labels ) - 1 ]
-        len_data = len( complete_data )
-        len_test_data = int( self.test_data_share * len_data )
-        dimensions = len( complete_data[ 0 ] )
-        # take random positions from the complete data to create test data
-        data_indices = range( len_data )
-        shuffle( data_indices )
-        self.test_positions = data_indices[ :len_test_data ]
-        train_positions = data_indices[ len_test_data: ]
+        complete_data, labels, dictionary, reverse_dictionary = data.read_data()      
+        np.random.seed( seed )
+        dimensions = len( dictionary )
+        train_data, test_data, train_labels, test_labels = train_test_split( complete_data, labels, test_size=test_data_share, random_state=seed )
+        # write the test data and labels to files for further evaluation
+        with h5.File( self.test_data_path, "w" ) as test_data_file:
+            test_data_file.create_dataset( "testdata", test_data.shape, data=test_data )
 
-        # create test and train data and labels
-        train_data = np.zeros( [ len_data - len_test_data, dimensions ] )
-        train_labels = np.zeros( [ len_data - len_test_data, dimensions ] )
-        test_data = np.zeros( [ len_test_data, dimensions ] )
-        test_labels = np.zeros( [ len_test_data, dimensions ] )
+        with h5.File( self.test_labels_path, "w" ) as test_labels_file:
+            test_labels_file.create_dataset( "testlabels", test_labels.shape, data=test_labels )
 
-        for i, item in enumerate( train_positions ):
-            train_data[ i ] = complete_data[ item ]
-            train_labels[ i ] = labels[ item ]
-
-        for i, item in enumerate( self.test_positions ):
-            test_data[ i ] = complete_data[ item ]
-            test_labels[ i ] = labels[ item ]
         return train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary
 
     @classmethod
@@ -80,25 +71,27 @@ class PredictNextTool:
         Create LSTM network and evaluate performance
         """
         print "Dividing data..."
-        n_epochs = 200
+        n_epochs = 50
         num_predictions = 5
         batch_size = 40
         dropout = 0.2
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
         # reshape train and test data
-        train_data = np.reshape(train_data, (train_data.shape[0], 1, train_data.shape[1]))
-        train_labels = np.reshape(train_labels, (train_labels.shape[0], 1, train_labels.shape[1]))
-        test_data = np.reshape(test_data, (test_data.shape[0], 1, test_data.shape[1]))
-        test_labels = np.reshape(test_labels, (test_labels.shape[0], 1, test_labels.shape[1]))
+        train_data = np.reshape( train_data, ( train_data.shape[0], 1, train_data.shape[1] ) )
+        train_labels = np.reshape( train_labels, (train_labels.shape[0], 1, train_labels.shape[1] ) )
+        test_data = np.reshape(test_data, ( test_data.shape[0], 1, test_data.shape[1] ) )
+        test_labels = np.reshape( test_labels, ( test_labels.shape[0], 1, test_labels.shape[1] ) )
         train_data_shape = train_data.shape
         optimizer = Adam( lr=0.0001 )
         # define recurrent network
         model = Sequential()
-        model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True ) )
+        model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True, recurrent_dropout=dropout ) )
         model.add( Dropout( dropout ) )
         #model.add( LSTM( 512, return_sequences=True ) )
         #model.add( Dropout( dropout ) )
-        model.add( LSTM( 256, return_sequences=True) )
+        #model.add( LSTM( 256, return_sequences=True ) )
+        #model.add( Dropout( dropout ) )
+        model.add( LSTM( 256, return_sequences=True, recurrent_dropout=dropout ) )
         model.add( Dense( 256 ) )
         model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
@@ -110,13 +103,17 @@ class PredictNextTool:
         callbacks_list = [ checkpoint ]
 
         print "Start training..."
-        model_fit_callbacks = model.fit( train_data, train_labels, nb_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
+        model_fit_callbacks = model.fit( train_data, train_labels, validation_data=( test_data, test_labels ), np_epoch=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
         loss_values = model_fit_callbacks.history[ "loss" ]
         accuracy_values = model_fit_callbacks.history[ "acc" ]
-        np_loss_values = np.array( loss_values )
-        np_accuracy_values = np.array( accuracy_values )
-        np.savetxt( self.loss_path, np_loss_values, delimiter="," )
-        np.savetxt( self.accuracy_path, np_accuracy_values, delimiter="," )
+        validation_loss = model_fit_callbacks.history[ "val_loss" ]
+        validation_acc = model_fit_callbacks.history[ "val_acc" ]
+
+        # save the accuracy and loss data
+        np.savetxt( self.loss_path, np.array( loss_values ), delimiter="," )
+        np.savetxt( self.accuracy_path, np.array( accuracy_values ), delimiter="," )
+        np.savetxt( self.val_loss_path, np.array( validation_loss ), delimiter="," )
+        np.savetxt( self.val_accuracy_path, np.array( validation_acc ), delimiter="," )
 
         # save the network as json
         model_json = model.to_json()
@@ -124,15 +121,7 @@ class PredictNextTool:
             json_file.write(model_json)
         # save the learned weights to h5 file
         model.save_weights( self.weights_path )
-
-        print "Start predicting..."
-        accuracy = model.evaluate( test_data, test_labels, verbose=0 )
-        print "Loss: %.2f " % accuracy[ 0 ]
-        print "Top-1 accuracy: %.2f " % accuracy[ 1 ]
-
-        # get top n accuracy
-        predict_tool = evaluate_top_results.EvaluateTopResults()
-        predict_tool.evaluate_topn_epochs( n_epochs, num_predictions, dimensions, reverse_dictionary, test_data, test_labels )
+        print "Training finished"
 
     @classmethod
     def load_saved_model( self, network_config_path, weights_path ):
