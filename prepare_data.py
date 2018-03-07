@@ -18,7 +18,7 @@ class PrepareData:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/doc2vec_tools_sequences/similar_galaxy_workflow'
+        self.current_working_dir = os.getcwd()
         self.raw_file = self.current_working_dir + "/data/workflow_steps.txt"
         self.train_file = self.current_working_dir + "/data/train_data.txt"
         self.sequence_file = self.current_working_dir + "/data/train_data_sequence.txt"
@@ -131,7 +131,7 @@ class PrepareData:
         """
         Convert the data into corresponding arrays
         """
-        tagged_documents = list()
+        graph_documents = list()
         processed_data, raw_paths = self.process_processed_data( self.raw_file )
         dictionary, reverse_dictionary = self.create_data_dictionary( processed_data )
         #self.create_train_labels_file( dictionary, raw_paths )
@@ -148,10 +148,8 @@ class PrepareData:
                if pos:
                    train_data_array[ index ][ id_pos ] = int( pos )
                    nodes.append( reverse_dictionary[ int( pos ) ] )
-           # tagged documents
-           td = TaggedDocument( gensim.utils.to_unicode( " ".join( nodes ) ), [ index ] )
-           tagged_documents.append( td )
+           graph_documents.append( nodes )
            pos_label = train_labels[ index ]
            if pos_label:
                train_label_array[ index ][ int( pos_label ) ] = 1.0
-        return train_data_array, train_label_array, dictionary, reverse_dictionary, tagged_documents
+        return train_data_array, train_label_array, dictionary, reverse_dictionary, graph_documents

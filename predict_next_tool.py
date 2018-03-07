@@ -26,6 +26,7 @@ from sklearn.model_selection import train_test_split
 from keras.layers.convolutional import Conv1D
 from keras.layers.convolutional import MaxPooling1D
 import gensim
+from gensim.models import Word2Vec
 
 import prepare_data
 import evaluate_top_results
@@ -35,7 +36,7 @@ class PredictNextTool:
     @classmethod
     def __init__( self ):
         """ Init method. """
-        self.current_working_dir = '/home/fr/fr_fr/fr_ak548/thesis/code/workflows/doc2vec_tools_sequences/similar_galaxy_workflow'
+        self.current_working_dir = os.getcwd()
         self.sequence_file = self.current_working_dir + "/data/train_data_sequence.txt"
         self.network_config_json_path = self.current_working_dir + "/data/model.json"
         self.weights_path = self.current_working_dir + "/data/weights/trained_model.h5"
@@ -49,44 +50,36 @@ class PredictNextTool:
         self.doc2vec_model_path = self.current_working_dir + "/data/doc2vec_model.hdf5"
 
     @classmethod
-    def learn_graph_vector( self, tagged_documents ):
-        """
-        Learn a vector representation for each graph
-        """   
-        training_epochs = 20
-        fix_graph_dimension = 100
-        len_graphs = len( tagged_documents )
-        print ('Learning doc2vectors...')
-        input_vector = np.zeros( [ len_graphs, fix_graph_dimension ] )
-        model = gensim.models.Doc2Vec( tagged_documents, dm=0, size=fix_graph_dimension, negative=5, min_count=1, iter=200, window=15, alpha=1e-2, min_alpha=1e-4, dbow_words=1, sample=1e-5 )
-        for epoch in range( training_epochs ):
-            print ( 'Learning vector repr. epoch %s' % epoch )
-            shuffle( tagged_documents )
-            model.train( tagged_documents, total_examples=model.corpus_count, epochs=model.iter )
-        for i in range( len( model.docvecs ) ):
-           input_vector[ i ][ : ] = model.docvecs[ i ]
-        with h5.File( self.doc2vec_model_path, "w" ) as model_file:
-            model_file.create_dataset( "doc2vector", input_vector.shape, data=input_vector, dtype='float64' )
-        return input_vector
-
-    @classmethod
     def divide_train_test_data( self ):
         """
         Divide data into train and test sets in a random way
         """
         test_data_share = 0.33
         seed = 0
+        node_vectors = dict()
+        
         data = prepare_data.PrepareData()
-        complete_data, labels, dictionary, reverse_dictionary, tagged_documents = data.read_data()
-        try:
-            doc2vector = h5.File( self.doc2vec_model_path, 'r' )
-            complete_data_vector = doc2vector[ "doc2vector" ]
-        except Exception:
-            print ("Learning vector representations of graphs...")
-            complete_data_vector = self.learn_graph_vector( tagged_documents )
+        complete_data, labels, dictionary, reverse_dictionary, graph_documents = data.read_data()
+        
+        node_dimensions = 100
+        model = Word2Vec( graph_documents, min_count=1, size=node_dimensions, iter=20 )
+        nodes = list( model.wv.vocab )
+        nodes_vec = model[ model.wv.vocab ]
+        complete_input_vector = np.zeros( [ len( complete_data ), len( nodes ), node_dimensions ] )
+        for i in range( len( nodes ) ):
+            node_vectors[ nodes[ i ] ] = nodes_vec[ i ]
+        for index, path in enumerate( complete_data ):
+             for node_idx, node_pos in enumerate( path ):
+                 if node_pos > 0:
+                     node_name = reverse_dictionary[ node_pos ]
+                     complete_input_vector[ index ][ node_idx ][ : ] = node_vectors[ node_name ]
+
+        
+
+        model.save('word2vec_model.bin')
         np.random.seed( seed )
         dimensions = len( dictionary )
-        train_data, test_data, train_labels, test_labels = train_test_split( complete_data_vector, labels, test_size=test_data_share, random_state=seed )
+        train_data, test_data, train_labels, test_labels = train_test_split( complete_input_vector, labels, test_size=test_data_share, random_state=seed )
         # write the test data and labels to files for further evaluation
         with h5.File( self.test_data_path, "w" ) as test_data_file:
             test_data_file.create_dataset( "testdata", test_data.shape, data=test_data )
