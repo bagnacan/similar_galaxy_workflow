@@ -132,6 +132,7 @@ class PrepareData:
         Convert the data into corresponding arrays
         """
         graph_documents = list()
+        unique_nodes = list()
         processed_data, raw_paths = self.process_processed_data( self.raw_file )
         dictionary, reverse_dictionary = self.create_data_dictionary( processed_data )
         #self.create_train_labels_file( dictionary, raw_paths )
@@ -149,7 +150,8 @@ class PrepareData:
                    train_data_array[ index ][ id_pos ] = int( pos )
                    nodes.append( reverse_dictionary[ int( pos ) ] )
            graph_documents.append( nodes )
+           unique_nodes.extend( nodes )
            pos_label = train_labels[ index ]
            if pos_label:
                train_label_array[ index ][ int( pos_label ) ] = 1.0
-        return train_data_array, train_label_array, dictionary, reverse_dictionary, graph_documents
+        return train_data_array, train_label_array, dictionary, reverse_dictionary, graph_documents, len( list( set( unique_nodes ) ) )

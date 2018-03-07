@@ -59,13 +59,13 @@ class PredictNextTool:
         node_vectors = dict()
         
         data = prepare_data.PrepareData()
-        complete_data, labels, dictionary, reverse_dictionary, graph_documents = data.read_data()
+        complete_data, labels, dictionary, reverse_dictionary, graph_documents, nodes_len = data.read_data()
         
         node_dimensions = 100
         model = Word2Vec( graph_documents, min_count=1, size=node_dimensions, iter=20 )
         nodes = list( model.wv.vocab )
         nodes_vec = model[ model.wv.vocab ]
-        complete_input_vector = np.zeros( [ len( complete_data ), len( nodes ), node_dimensions ] )
+        complete_input_vector = np.zeros( [ complete_data.shape[ 0 ], complete_data.shape[ 1 ], node_dimensions ] )
         for i in range( len( nodes ) ):
             node_vectors[ nodes[ i ] ] = nodes_vec[ i ]
         for index, path in enumerate( complete_data ):
@@ -73,19 +73,19 @@ class PredictNextTool:
                  if node_pos > 0:
                      node_name = reverse_dictionary[ node_pos ]
                      complete_input_vector[ index ][ node_idx ][ : ] = node_vectors[ node_name ]
-
-        
-
+        print (complete_input_vector.shape)
         model.save('word2vec_model.bin')
         np.random.seed( seed )
         dimensions = len( dictionary )
         train_data, test_data, train_labels, test_labels = train_test_split( complete_input_vector, labels, test_size=test_data_share, random_state=seed )
+        print(train_data.shape)
+        print(train_labels.shape)
         # write the test data and labels to files for further evaluation
         with h5.File( self.test_data_path, "w" ) as test_data_file:
             test_data_file.create_dataset( "testdata", test_data.shape, data=test_data )
         with h5.File( self.test_labels_path, "w" ) as test_labels_file:
             test_labels_file.create_dataset( "testlabels", test_labels.shape, data=test_labels )
-        return train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary
+        return train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary, nodes_len
 
     @classmethod
     def evaluate_LSTM_network( self ):
@@ -97,23 +97,27 @@ class PredictNextTool:
         num_predictions = 5
         batch_size = 40
         dropout = 0.2
-        train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
+        node_dimensions = 100
+        train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary, nodes_len = self.divide_train_test_data()
         # reshape train and test data
-        train_data = np.reshape( train_data, ( train_data.shape[0], 1, train_data.shape[1] ) )
+        train_data = np.reshape( train_data, ( train_data.shape[0], train_data.shape[1], train_data.shape[2] ) )
         train_labels = np.reshape( train_labels, (train_labels.shape[0], 1, train_labels.shape[1] ) )
-        test_data = np.reshape(test_data, ( test_data.shape[0], 1, test_data.shape[1] ) )
+        test_data = np.reshape(test_data, ( test_data.shape[0], test_data.shape[1], test_data.shape[2] ) )
         test_labels = np.reshape( test_labels, ( test_labels.shape[0], 1, test_labels.shape[1] ) )
         train_data_shape = train_data.shape
+        print (train_data_shape)
         optimizer = Adam( lr=0.0001 )
         # define recurrent network
         model = Sequential()
         model.add( LSTM( 256, input_shape=( train_data_shape[ 1 ], train_data_shape[ 2 ] ), return_sequences=True, recurrent_dropout=dropout ) )
+        #model.add(Embedding( train_data_shape[1], node_dimensions, input_length=train_data_shape[1] ) )
+        #model.add( LSTM( 256, return_sequences=True) )
         model.add( Dropout( dropout ) )
         #model.add( LSTM( 512, return_sequences=True, recurrent_dropout=dropout ) )
         #model.add( Dropout( dropout ) )
-        model.add( LSTM( 256, return_sequences=True, recurrent_dropout=dropout ) )
-        model.add( Dense( 256 ) )
-        model.add( Dropout( dropout ) )
+        #model.add( LSTM( 256, recurrent_dropout=dropout ) )
+        #model.add( Dense( 256 ) )
+        #model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
         model.add( Activation( 'softmax' ) )
         model.compile( loss='categorical_crossentropy', optimizer=optimizer, metrics=[ 'accuracy' ] )
