@@ -17,7 +17,9 @@ from keras.callbacks import ModelCheckpoint
 from keras.models import model_from_json
 from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
-import gensim
+from keras.metrics import categorical_accuracy
+from keras.layers.embeddings import Embedding
+from keras.layers import Flatten, Reshape
 
 import prepare_data
 
@@ -38,28 +40,7 @@ class PredictNextTool:
         self.epoch_weights_path = self.current_working_dir + "/data/weights/weights-epoch-{epoch:02d}.hdf5"
         self.test_data_path = self.current_working_dir + "/data/test_data.hdf5"
         self.test_labels_path = self.current_working_dir + "/data/test_labels.hdf5"
-        self.doc2vec_model_path = self.current_working_dir + "/data/doc2vec_model.hdf5"
 
-    @classmethod
-    def learn_graph_vector( self, tagged_documents ):
-        """
-        Learn a vector representation for each path
-        """
-        training_epochs = 10
-        fix_graph_dimension = 100
-        len_graphs = len( tagged_documents )
-        print ('Learning doc2vectors...')
-        input_vector = np.zeros( [ len_graphs, fix_graph_dimension ] )
-        model = gensim.models.Doc2Vec( tagged_documents, dm=0, size=fix_graph_dimension, negative=5, min_count=1, iter=100, window=15, alpha=1e-2, min_alpha=1e-4, dbow_words=1, sample=1e-5 )
-        for epoch in range( training_epochs ):
-            print ( 'Learning vector repr. epoch %s' % epoch )
-            shuffle( tagged_documents )
-            model.train( tagged_documents, total_examples=model.corpus_count, epochs=model.iter )
-        for i in range( len( model.docvecs ) ):
-           input_vector[ i ][ : ] = model.docvecs[ i ]
-        with h5.File( self.doc2vec_model_path, "w" ) as model_file:
-            model_file.create_dataset( "doc2vector", input_vector.shape, data=input_vector, dtype='float64' )
-        return input_vector
 
     @classmethod
     def divide_train_test_data( self ):
@@ -69,20 +50,10 @@ class PredictNextTool:
         test_data_share = 0.2
         seed = 0
         data = prepare_data.PrepareData()
-        complete_data, labels, dictionary, reverse_dictionary, tagged_documents = data.read_data()
-        try:
-            print("Loading the saved doc2vec...")
-            doc2vec = h5.File( self.doc2vec_model_path, 'r' )[ "doc2vector" ]
-            doc2vec_shape = doc2vec.shape
-            complete_data_vector = np.zeros( [ doc2vec_shape[ 0 ], doc2vec_shape[ 1 ] ] )
-            for i in range( doc2vec_shape[ 0 ] ):
-                complete_data_vector[ i ][ : ] = doc2vec[ i ]
-        except Exception as exp:
-            print ("Learning vector representations of graphs...")
-            complete_data_vector = self.learn_graph_vector( tagged_documents )
+        complete_data, labels, dictionary, reverse_dictionary = data.read_data()
         np.random.seed( seed )
         dimensions = len( dictionary )
-        train_data, test_data, train_labels, test_labels = train_test_split( complete_data_vector, labels, test_size=test_data_share, random_state=seed )
+        train_data, test_data, train_labels, test_labels = train_test_split( complete_data, labels, test_size=test_data_share, random_state=seed )
         # write the test data and labels to files for further evaluation
         with h5.File( self.test_data_path, "w" ) as test_data_file:
             test_data_file.create_dataset( "testdata", test_data.shape, data=test_data )
@@ -100,28 +71,26 @@ class PredictNextTool:
         Create keras classifier and evaluate performance
         """
         print ("Dividing data...")
-        n_epochs = 100
-        batch_size = 50
+        n_epochs = 5
+        batch_size = 100
         dropout = 0.75
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
-
         # reshape train and test data
         train_data = np.reshape( train_data, ( train_data.shape[0], train_data.shape[1] ) )
         train_labels = np.reshape( train_labels, (train_labels.shape[0], train_labels.shape[1] ) )
-        test_data = np.reshape(test_data, ( test_data.shape[0], test_data.shape[1] ) )
+        test_data = np.reshape( test_data, ( test_data.shape[0], test_data.shape[1] ) )
         test_labels = np.reshape( test_labels, ( test_labels.shape[0], test_labels.shape[1] ) )
         train_data_shape = train_data.shape
 
         # define network and related terms
         model = Sequential()
         optimizer = Adam( lr=0.0001 )
-        model.add(Dense( 512, input_shape=( train_data_shape[ 1 ], ), activation='relu', kernel_initializer='normal' ) )
-        model.add( Dropout( dropout ) )
-        #model.add( Dense( 512, activation='relu' ) )
-        #model.add( Dropout( dropout ) )
-        model.add( Dense( dimensions ) )
-        model.add( Activation( 'sigmoid' ) )
-        model.compile( loss='binary_crossentropy', optimizer='adam', metrics=[ self.top_n_accuracy ] )
+
+        model.add( Embedding( dimensions, 32, input_length=train_data_shape[ 1 ] ) ) # input_length=train_data_shape[ 1 ]
+        model.add( Dense( 256, activation='relu', kernel_initializer='normal' ) )
+        model.add( Dense( dimensions, activation="sigmoid" ) )
+        
+        model.compile( loss='binary_crossentropy', optimizer=optimizer, metrics=[ 'accuracy' ] ) #categorical_accuracy
 
         # save the network as json
         model_json = model.to_json()
@@ -139,9 +108,9 @@ class PredictNextTool:
         model_fit_callbacks = model.fit( train_data, train_labels, validation_data=( test_data, test_labels ), epochs=n_epochs, batch_size=batch_size, callbacks=callbacks_list, shuffle=True )
 
         loss_values = model_fit_callbacks.history[ "loss" ]
-        accuracy_values = model_fit_callbacks.history[ "top_n_accuracy" ]
+        accuracy_values = model_fit_callbacks.history[ "acc" ]
         validation_loss = model_fit_callbacks.history[ "val_loss" ]
-        validation_acc = model_fit_callbacks.history[ "val_top_n_accuracy" ]
+        validation_acc = model_fit_callbacks.history[ "val_acc" ]
 
         np.savetxt( self.loss_path, np.array( loss_values ), delimiter="," )
         np.savetxt( self.accuracy_path, np.array( accuracy_values ), delimiter="," )

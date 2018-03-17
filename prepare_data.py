@@ -6,8 +6,6 @@ import os
 import collections
 import numpy as np
 import json
-import gensim
-from gensim.models.doc2vec import TaggedDocument
 
 
 class PrepareData:
@@ -51,7 +49,7 @@ class PrepareData:
         count = collections.Counter( words ).most_common()
         dictionary = dict()
         for word, _ in count:
-            dictionary[word] = len( dictionary )
+            dictionary[word] = len( dictionary ) + 1
         reverse_dictionary = dict( zip( dictionary.values(), dictionary.keys() ) )
         with open( self.data_dictionary, 'w' ) as distribution_file:
             distribution_file.write( json.dumps( dictionary ) )
@@ -146,15 +144,12 @@ class PrepareData:
             positions = train_seq.split( "," )
             for id_pos, pos in enumerate( positions ):
                 if pos:
-                    train_data_array[ train_counter ][ id_pos ] = int( pos )
+                    train_data_array[ train_counter ][ id_pos ] = int( pos ) - 1
                     nodes.append( reverse_dictionary[ int( pos ) ] )
-            # tagged documents
-            td = TaggedDocument( gensim.utils.to_unicode( " ".join( nodes ) ), [ train_counter ] )
-            tagged_documents.append( td )
             pos_labels = train_label.split( "," )
             if len( pos_labels ) > 0:
                 # one-hot vector for labels
                 for label_item in pos_labels:
-                    train_label_array[ train_counter ][ int( label_item ) ] = 1.0
+                    train_label_array[ train_counter ][ int( label_item ) - 1 ] = 1.0
             train_counter += 1
-        return train_data_array, train_label_array, dictionary, reverse_dictionary, tagged_documents
+        return train_data_array, train_label_array, dictionary, reverse_dictionary
