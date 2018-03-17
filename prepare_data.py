@@ -156,6 +156,5 @@ class PrepareData:
                 # one-hot vector for labels
                 for label_item in pos_labels:
                     train_label_array[ train_counter ][ int( label_item ) ] = 1.0
-            label_pos_items = np.where( train_label_array[ train_counter ] == 1.0 )
             train_counter += 1
         return train_data_array, train_label_array, dictionary, reverse_dictionary, tagged_documents

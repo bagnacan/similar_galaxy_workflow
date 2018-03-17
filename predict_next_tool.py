@@ -45,12 +45,12 @@ class PredictNextTool:
         """
         Learn a vector representation for each path
         """
-        training_epochs = 5
+        training_epochs = 10
         fix_graph_dimension = 100
         len_graphs = len( tagged_documents )
         print ('Learning doc2vectors...')
         input_vector = np.zeros( [ len_graphs, fix_graph_dimension ] )
-        model = gensim.models.Doc2Vec( tagged_documents, dm=0, size=fix_graph_dimension, negative=5, min_count=1, iter=5, window=15, alpha=1e-2, min_alpha=1e-4, dbow_words=1, sample=1e-5 )
+        model = gensim.models.Doc2Vec( tagged_documents, dm=0, size=fix_graph_dimension, negative=5, min_count=1, iter=100, window=15, alpha=1e-2, min_alpha=1e-4, dbow_words=1, sample=1e-5 )
         for epoch in range( training_epochs ):
             print ( 'Learning vector repr. epoch %s' % epoch )
             shuffle( tagged_documents )
@@ -92,7 +92,7 @@ class PredictNextTool:
 
     @classmethod
     def top_n_accuracy( self, y_true, y_pred ):
-        return top_k_categorical_accuracy( y_true, y_pred, k=5 )
+        return top_k_categorical_accuracy( y_true, y_pred, k=1 )
 
     @classmethod
     def evaluate_Dense_classifier( self ):
@@ -101,7 +101,7 @@ class PredictNextTool:
         """
         print ("Dividing data...")
         n_epochs = 100
-        batch_size = 32
+        batch_size = 50
         dropout = 0.75
         train_data, train_labels, test_data, test_labels, dimensions, dictionary, reverse_dictionary = self.divide_train_test_data()
 
@@ -120,8 +120,8 @@ class PredictNextTool:
         #model.add( Dense( 512, activation='relu' ) )
         #model.add( Dropout( dropout ) )
         model.add( Dense( dimensions ) )
-        model.add( Activation( 'softmax' ) )
-        model.compile( loss='categorical_crossentropy', optimizer='adam', metrics=[ self.top_n_accuracy ] )
+        model.add( Activation( 'sigmoid' ) )
+        model.compile( loss='binary_crossentropy', optimizer='adam', metrics=[ self.top_n_accuracy ] )
 
         # save the network as json
         model_json = model.to_json()
