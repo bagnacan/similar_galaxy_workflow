@@ -22,6 +22,7 @@ class PrepareData:
         self.distribution_file = self.current_working_dir + "/data/data_distribution.txt"
         self.data_dictionary = self.current_working_dir + "/data/data_dictionary.txt"
         self.data_rev_dict = self.current_working_dir + "/data/data_rev_dict.txt"
+        self.multi_train_labels = self.current_working_dir + "/data/multi_labels.txt"
 
     @classmethod
     def process_processed_data( self, fname ):
@@ -101,10 +102,9 @@ class PrepareData:
         """
         Read training data and its labels files
         """
-        training_samples = list()
-        training_labels = list()
         train_file = open( self.train_file, "r" )
         train_file = train_file.read().split( "\n" )
+        train_multi_label_samples = dict()
         seq_len = list()
         data_distribution = dict()
         for item in train_file:
@@ -113,17 +113,16 @@ class PrepareData:
             train_tools = ",".join( train_tools )
             label = tools[ -1 ]
             if label:
-                if label in data_distribution:
-                    data_distribution[ label ] += 1
+                if train_tools in train_multi_label_samples:
+                    train_multi_label_samples[ train_tools ] += "," + tools[ -1 ]
                 else:
-                    data_distribution[ label ] = 1
-                seq_len.append( len( train_tools ) )
-                training_labels.append( tools[ -1 ] )
-                training_samples.append( train_tools )
+                    train_multi_label_samples[ train_tools ] = tools[ -1 ]
+                len_train_seq = len( train_tools.split( "," ) )
+                seq_len.append( len_train_seq )
         # save the data distribution - count the number of samples with same class
-        with open( self.distribution_file, 'w' ) as distribution_file:
-            distribution_file.write( json.dumps( data_distribution ) )
-        return training_samples, training_labels, max( seq_len )
+        with open( self.multi_train_labels, 'w' ) as train_multilabel_file:
+            train_multilabel_file.write( json.dumps( train_multi_label_samples ) )
+        return train_multi_label_samples, max( seq_len )
 
     @classmethod
     def read_data( self ):
@@ -134,24 +133,29 @@ class PrepareData:
         processed_data, raw_paths = self.process_processed_data( self.raw_file )
         dictionary, reverse_dictionary = self.create_data_dictionary( processed_data )
         #self.create_train_labels_file( dictionary, raw_paths )
-        # all the nodes/tools are classes as well
+        # all the nodes/tools are classes as well 
+        train_labels_data, max_seq_length = self.prepare_train_test_data()
         num_classes = len( dictionary )
-        train_data, train_labels, max_seq_len = self.prepare_train_test_data()
+        len_train_data = len( train_labels_data )
         # initialize the training data matrix
-        train_data_array = np.zeros( [ len( train_data ), max_seq_len ] )
-        train_label_array = np.zeros( [ len( train_data ), num_classes ] )
-        for index, item in enumerate( train_data ):
-            positions = item.split( "," )
+        train_data_array = np.zeros( [ len_train_data, max_seq_length ] )
+        train_label_array = np.zeros( [ len_train_data, num_classes ] )
+        train_counter = 0
+        for train_seq, train_label in train_labels_data.iteritems():
             nodes = list()
+            positions = train_seq.split( "," )
             for id_pos, pos in enumerate( positions ):
                 if pos:
-                    train_data_array[ index ][ id_pos ] = int( pos )
+                    train_data_array[ train_counter ][ id_pos ] = int( pos )
                     nodes.append( reverse_dictionary[ int( pos ) ] )
             # tagged documents
-            td = TaggedDocument( gensim.utils.to_unicode( " ".join( nodes ) ), [ index ] )
+            td = TaggedDocument( gensim.utils.to_unicode( " ".join( nodes ) ), [ train_counter ] )
             tagged_documents.append( td )
-            pos_label = train_labels[ index ]
-            if pos_label:
+            pos_labels = train_label.split( "," )
+            if len( pos_labels ) > 0:
                 # one-hot vector for labels
-                train_label_array[ index ][ int( pos_label ) ] = 1.0
+                for label_item in pos_labels:
+                    train_label_array[ train_counter ][ int( label_item ) ] = 1.0
+            label_pos_items = np.where( train_label_array[ train_counter ] == 1.0 )
+            train_counter += 1
         return train_data_array, train_label_array, dictionary, reverse_dictionary, tagged_documents
